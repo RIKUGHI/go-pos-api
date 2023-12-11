@@ -21,12 +21,18 @@ func main() {
 		WriteTimeout: time.Second * 5,
 		ReadTimeout:  time.Second * 5,
 		Prefork:      true,
+		// ErrorHandler: func(c *fiber.Ctx, err error) error {
+		// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "test error : " + err.Error()})
+		// },
 	})
 
 	app.Post("/signup", controllers.SignUp)
 	app.Post("/login", controllers.Login)
-	app.Get("/validate", middleware.Auth, controllers.Validate)
-	app.Get("/logout", middleware.Auth, controllers.Logout)
+
+	authGroup := app.Group("/auth", middleware.Auth)
+
+	authGroup.Get("/validate", controllers.Validate)
+	authGroup.Get("/logout", controllers.Logout)
 
 	err := app.Listen(":3000")
 

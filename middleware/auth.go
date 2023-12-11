@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -12,40 +11,49 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+const (
+	authorizationCookieKey = "Authorization"
+)
+
 func Auth(c *fiber.Ctx) error {
-	tokenString := c.Cookies("Authorization")
+	tokenString := c.Cookies(authorizationCookieKey)
 
 	if tokenString == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorization"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
+	token, err := parseToken(tokenString)
 
-		return []byte(os.Getenv("SECRET")), nil
-	})
 	if err != nil {
-		log.Fatal(err)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		if float64(time.Now().Unix()) > claims["exp"].(float64) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorization"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token has expired"})
 		}
 
 		user := models.User{}
 		initializers.DB.First(&user, claims["sub"])
 
 		if user.ID == 0 {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorization"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 		}
 
 		c.Locals("user", user)
 	} else {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorization"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
 	return c.Next()
+}
+
+func parseToken(tokenString string) (*jwt.Token, error) {
+	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		return []byte(os.Getenv("SECRET")), nil
+	})
 }

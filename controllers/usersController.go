@@ -21,16 +21,16 @@ func SignUp(c *fiber.Ctx) error {
 	err := json.Unmarshal(c.Body(), request)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(request.Password), 10)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(request.Password), 10)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to hash password"})
 	}
 
-	user := models.User{Email: request.Email, Password: string(hash)}
+	user := models.User{Email: request.Email, Password: string(hashed)}
 	result := initializers.DB.Create(&user)
 
 	if result.Error != nil {
@@ -47,7 +47,7 @@ func Login(c *fiber.Ctx) error {
 	})
 
 	if err := json.Unmarshal(c.Body(), request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
 	user := models.User{}
@@ -80,7 +80,7 @@ func Login(c *fiber.Ctx) error {
 		Path:     "",
 		Secure:   false,
 		HTTPOnly: true,
-		SameSite: "Lax",
+		SameSite: fiber.CookieSameSiteLaxMode,
 	})
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{})
@@ -93,6 +93,16 @@ func Validate(c *fiber.Ctx) error {
 }
 
 func Logout(c *fiber.Ctx) error {
-	c.ClearCookie("Authorization")
+	c.Cookie(&fiber.Cookie{
+		Name:     "Authorization",
+		Value:    "",
+		MaxAge:   -1,
+		Domain:   "",
+		Path:     "",
+		Secure:   false,
+		HTTPOnly: true,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
+
 	return c.JSON(fiber.Map{"message": "Logout successful"})
 }
