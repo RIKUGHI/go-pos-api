@@ -33,8 +33,8 @@ func Auth(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Token has expired"})
 		}
 
-		user := models.User{}
-		initializers.DB.First(&user, claims["sub"])
+		user := new(models.User)
+		initializers.DB.First(user, claims["sub"])
 
 		if user.ID == 0 {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
@@ -43,6 +43,16 @@ func Auth(c *fiber.Ctx) error {
 		c.Locals("user", user)
 	} else {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	return c.Next()
+}
+
+func EnsureUser(c *fiber.Ctx) error {
+	_, ok := c.Locals("user").(*models.User)
+
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve user data"})
 	}
 
 	return c.Next()

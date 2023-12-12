@@ -87,8 +87,10 @@ func Login(c *fiber.Ctx) error {
 }
 
 func Validate(c *fiber.Ctx) error {
+	user, _ := c.Locals("user").(*models.User)
+
 	return c.JSON(fiber.Map{
-		"data": c.Locals("user"),
+		"data": user,
 	})
 }
 

@@ -29,10 +29,16 @@ func main() {
 	app.Post("/signup", controllers.SignUp)
 	app.Post("/login", controllers.Login)
 
-	authGroup := app.Group("/auth", middleware.Auth)
+	authGroup := app.Group("/auth", middleware.Auth, middleware.EnsureUser)
 
 	authGroup.Get("/validate", controllers.Validate)
 	authGroup.Get("/logout", controllers.Logout)
+
+	authGroup.Get("products", controllers.Products)
+	authGroup.Get("products/:id", controllers.ByID)
+	authGroup.Post("products", controllers.Create)
+	authGroup.Put("products/:id", controllers.Update)
+	authGroup.Delete("products/:id", controllers.Delete)
 
 	err := app.Listen(":3000")
 
