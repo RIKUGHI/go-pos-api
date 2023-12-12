@@ -34,11 +34,13 @@ func main() {
 	authGroup.Get("/validate", controllers.Validate)
 	authGroup.Get("/logout", controllers.Logout)
 
-	authGroup.Get("products", controllers.Products)
-	authGroup.Get("products/:id", controllers.ByID)
-	authGroup.Post("products", controllers.Create)
-	authGroup.Put("products/:id", controllers.Update)
-	authGroup.Delete("products/:id", controllers.Delete)
+	productGroup := authGroup.Group("/products")
+
+	productGroup.Get("/", controllers.Products)
+	productGroup.Get("/:id", controllers.ByID)
+	productGroup.Post("/", controllers.Create)
+	productGroup.Put("/:id", controllers.Update)
+	productGroup.Delete("/:id", controllers.Delete)
 
 	err := app.Listen(":3000")
 
