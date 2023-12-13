@@ -2,161 +2,98 @@ package controllers
 
 import (
 	"encoding/json"
-	"time"
 
-	"github.com/RIKUGHI/go-pos-api/initializers"
+	"github.com/RIKUGHI/go-pos-api/helper"
 	"github.com/RIKUGHI/go-pos-api/models"
+	"github.com/RIKUGHI/go-pos-api/models/dto"
+	"github.com/RIKUGHI/go-pos-api/services"
 	"github.com/gofiber/fiber/v2"
 )
 
-type ProductRequest struct {
-	Name  string `json:"name"`
-	Price int    `json:"price"`
+type ProductController struct {
+	*services.ProductService
 }
 
-type ProductResponse struct {
-	ID        uint      `json:"id"`
-	Name      string    `json:"name"`
-	Price     int       `json:"price"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+func NewProductController(productService *services.ProductService) *ProductController {
+	return &ProductController{
+		ProductService: productService,
+	}
 }
 
-func Products(c *fiber.Ctx) error {
+func (pc *ProductController) FindAll(c *fiber.Ctx) error {
 	user, _ := c.Locals("user").(*models.User)
-	products, err := getProducts(user.ID)
+	products, err := pc.ProductService.FindAll(user.ID)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to retrieve products"})
+		return fiber.NewError(fiber.StatusBadRequest, "Failed to retrieve products")
 	}
 
 	return c.JSON(fiber.Map{
-		"data": mapToProductResponses(products),
+		"data": helper.MapToProductResponses(products),
 	})
 }
 
-func ByID(c *fiber.Ctx) error {
+func (pc *ProductController) FindByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	user, _ := c.Locals("user").(*models.User)
-	product, err := getProductByID(id, user.ID)
+	product, err := pc.ProductService.FindByID(id, user.ID)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Product not found"})
+		return fiber.NewError(fiber.StatusBadRequest, "Product not found")
 	}
 
 	return c.JSON(fiber.Map{
-		"data": mapToProductResponse(product),
+		"data": helper.MapToProductResponse(product),
 	})
 }
 
-func Create(c *fiber.Ctx) error {
+func (pc *ProductController) Create(c *fiber.Ctx) error {
 	user, _ := c.Locals("user").(*models.User)
-	request := new(ProductRequest)
+	request := new(dto.ProductDTO)
 
 	if err := json.Unmarshal(c.Body(), request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	product, err := createProduct(request, user.ID)
+	product, err := pc.ProductService.Create(request, user.ID)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to create product"})
+		return fiber.NewError(fiber.StatusBadRequest, "Failed to create product")
 	}
 
 	return c.JSON(fiber.Map{
-		"data": mapToProductResponse(product),
+		"data": helper.MapToProductResponse(product),
 	})
 }
 
-func Update(c *fiber.Ctx) error {
+func (pc *ProductController) Update(c *fiber.Ctx) error {
 	id := c.Params("id")
 	user, _ := c.Locals("user").(*models.User)
 
-	request := new(ProductRequest)
+	request := new(dto.ProductDTO)
 
 	if err := json.Unmarshal(c.Body(), request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	product, err := updateProduct(id, user.ID, request)
+	product, err := pc.ProductService.Update(id, user.ID, request)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to update product"})
+		return fiber.NewError(fiber.StatusBadRequest, "Failed to update product")
 	}
 
 	return c.JSON(fiber.Map{
-		"data": mapToProductResponse(product),
+		"data": helper.MapToProductResponse(product),
 	})
 }
 
-func Delete(c *fiber.Ctx) error {
+func (pc *ProductController) Delete(c *fiber.Ctx) error {
 	id := c.Params("id")
 	user, _ := c.Locals("user").(*models.User)
 
-	if err := deleteProduct(id, user.ID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	if err := pc.ProductService.Delete(id, user.ID); err != nil {
+		return err
 	}
 
 	return c.JSON(fiber.Map{})
-}
-
-func getProducts(userID uint) ([]models.Product, error) {
-	var products []models.Product
-	err := initializers.DB.Where("user_id = ?", userID).Order("id desc").Find(&products).Error
-	return products, err
-}
-
-func getProductByID(id string, userID uint) (*models.Product, error) {
-	var product models.Product
-	err := initializers.DB.Where("id = ? AND user_id = ?", id, userID).Take(&product).Error
-	return &product, err
-}
-
-func createProduct(request *ProductRequest, userID uint) (*models.Product, error) {
-	product := models.Product{Name: request.Name, Price: request.Price, UserId: userID}
-	result := initializers.DB.Create(&product)
-	return &product, result.Error
-}
-
-func updateProduct(id string, userID uint, request *ProductRequest) (*models.Product, error) {
-	var product models.Product
-	if err := initializers.DB.Where("id = ? AND user_id = ?", id, userID).Take(&product).Error; err != nil {
-		return nil, err
-	}
-
-	product.Name = request.Name
-	product.Price = request.Price
-
-	if err := initializers.DB.Save(&product).Error; err != nil {
-		return nil, err
-	}
-
-	return &product, nil
-}
-
-func deleteProduct(id string, userID uint) error {
-	var product models.Product
-	result := initializers.DB.Where("id = ? AND user_id = ?", id, userID).Delete(&product)
-	if result.RowsAffected == 0 {
-		return fiber.NewError(fiber.StatusBadRequest, "Failed to delete product")
-	}
-	return nil
-}
-
-func mapToProductResponses(products []models.Product) []ProductResponse {
-	productResponses := []ProductResponse{}
-	for _, p := range products {
-		productResponses = append(productResponses, mapToProductResponse(&p))
-	}
-	return productResponses
-}
-
-func mapToProductResponse(product *models.Product) ProductResponse {
-	return ProductResponse{
-		ID:        product.ID,
-		Name:      product.Name,
-		Price:     product.Price,
-		CreatedAt: product.CreatedAt,
-		UpdatedAt: product.UpdatedAt,
-	}
 }

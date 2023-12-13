@@ -6,6 +6,7 @@ import (
 	"github.com/RIKUGHI/go-pos-api/controllers"
 	"github.com/RIKUGHI/go-pos-api/initializers"
 	"github.com/RIKUGHI/go-pos-api/middleware"
+	"github.com/RIKUGHI/go-pos-api/services"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -21,9 +22,18 @@ func main() {
 		WriteTimeout: time.Second * 5,
 		ReadTimeout:  time.Second * 5,
 		Prefork:      true,
-		// ErrorHandler: func(c *fiber.Ctx, err error) error {
-		// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "test error : " + err.Error()})
-		// },
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			if e, ok := err.(*fiber.Error); ok {
+				return c.Status(e.Code).JSON(fiber.Map{
+					"error": e.Message,
+				})
+			}
+
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Internal Server Error: " + err.Error(),
+				"code":  fiber.StatusInternalServerError,
+			})
+		},
 	})
 
 	app.Post("/signup", controllers.SignUp)
@@ -35,12 +45,13 @@ func main() {
 	authGroup.Get("/logout", controllers.Logout)
 
 	productGroup := authGroup.Group("/products")
+	productController := controllers.NewProductController(services.NewProductService())
 
-	productGroup.Get("/", controllers.Products)
-	productGroup.Get("/:id", controllers.ByID)
-	productGroup.Post("/", controllers.Create)
-	productGroup.Put("/:id", controllers.Update)
-	productGroup.Delete("/:id", controllers.Delete)
+	productGroup.Get("/", productController.FindAll)
+	productGroup.Get("/:id", productController.FindByID)
+	productGroup.Post("/", productController.Create)
+	productGroup.Put("/:id", productController.Update)
+	productGroup.Delete("/:id", productController.Delete)
 
 	err := app.Listen(":3000")
 
